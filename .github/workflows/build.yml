@@ -1,0 +1,91 @@
+# CodeForge IDE: builds the APK in the cloud and publishes it as a GitHub Release.
+# Put this file in your repo at: .github/workflows/build.yml
+# Then upload codeforge-ide.zip to the repo root. Every upload of a new zip rebuilds.
+name: Build CodeForge APK
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-apk
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Unpack uploaded source zip
+        run: |
+          if [ -f codeforge-ide.zip ]; then
+            echo "Found codeforge-ide.zip, replacing project sources with its contents"
+            find . -mindepth 1 -maxdepth 1 ! -name .git ! -name .github ! -name codeforge-ide.zip -exec rm -rf {} +
+            unzip -o -q codeforge-ide.zip -d .
+            rm -f codeforge-ide.zip
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add -A
+            git commit -q -m "Unpack codeforge-ide.zip" || true
+            git push -q || echo "::warning::Could not push unpacked sources; continuing with the build."
+          fi
+          if [ ! -f settings.gradle.kts ]; then
+            echo "::error::No project found. Upload codeforge-ide.zip to the root of the repository."
+            exit 1
+          fi
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.11.1"
+
+      - name: Fetch Linux userland (Alpine + PRoot, checksum-verified)
+        run: bash scripts/fetch-bootstrap.sh
+
+      - name: Unit tests
+        run: gradle --no-daemon --stacktrace :app:testDebugUnitTest
+
+      - name: Build APK
+        run: gradle --no-daemon --stacktrace :app:assembleDebug
+
+      - name: Inspect APK
+        id: apk
+        run: |
+          SRC=$(ls app/build/outputs/apk/debug/*.apk | head -n1)
+          NAME="CodeForge-IDE-0.1.0-mvp-build${{ github.run_number }}.apk"
+          cp "$SRC" "$NAME"
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+          echo "APK size: $(du -h "$NAME" | cut -f1)"
+          unzip -l "$NAME" | grep -E "lib/.*/lib(proot|proot-loader|talloc|termux)\.so|assets/bootstrap/" \
+            || { echo "::error::APK is missing the Linux userland"; exit 1; }
+          SDK=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -n1)
+          "$SDK/apksigner" verify --print-certs "$NAME" | head -n 3
+          "$SDK/aapt2" dump badging "$NAME" | grep -E "^package|sdkVersion|targetSdkVersion|native-code"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.apk.outputs.name }}
+          path: ${{ steps.apk.outputs.name }}
+
+      - name: Publish release (direct APK download link)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cat > notes.md <<NOTES
+          CodeForge IDE MVP, build ${{ github.run_number }} (commit ${GITHUB_SHA::7}).
+
+          Signed with the public TEST key in keystore/ so later builds install as updates. Not a production signature.
+          arm64-v8a and x86_64. Android 8.0+. Sideload only (targetSdk 28, see docs/ARCHITECTURE.md).
+          NOTES
+          gh release create "build-${{ github.run_number }}" "${{ steps.apk.outputs.name }}" \
+            --title "CodeForge IDE build ${{ github.run_number }}" --notes-file notes.md --prerelease
