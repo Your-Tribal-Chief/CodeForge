@@ -1,0 +1,8 @@
+<resources>
+    <style name="Theme.CodeForge" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/cf_bg</item>
+        <item name="android:statusBarColor">@color/cf_bg</item>
+        <item name="android:navigationBarColor">@color/cf_bg</item>
+        <item name="android:colorAccent">@color/cf_ember</item>
+    </style>
+</resources>
