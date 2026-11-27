@@ -1,12 +1,13 @@
 # QA report
 
-No test below has been executed yet. Results are recorded only when actually run; nothing here is assumed to pass.
+CI rows were run on GitHub Actions (build 5). Device rows (D-*) have not been run yet. Results are recorded only when actually run.
 
 | ID | Test | Expected | Actual | Result |
 |---|---|---|---|---|
-| CI-1 | `fetch-bootstrap.sh` | Alpine + PRoot downloaded, checksums match, NEEDED libs allowed | | pending |
-| CI-2 | `testDebugUnitTest` (FileOpsTest: quoting, name validation) | 5 pass | | pending |
-| CI-3 | `assembleDebug` | APK built, contains libproot/libtermux/bootstrap assets, signature verifies | | pending |
+| CI-1 | `fetch-bootstrap.sh` | Alpine + PRoot downloaded, checksums match, NEEDED libs allowed | Alpine 3.24.4; proot needs libtalloc + libandroid-shmem, both bundled (BUG-1) | pass |
+| CI-2 | `testDebugUnitTest` (FileOpsTest: quoting, name validation) | 5 pass | 5 pass | pass |
+| CI-3 | `assembleDebug` | APK built, contains libproot/libtermux/bootstrap assets, signature verifies | 27 MB, v2-signed with test key (BUG-2 fixed) | pass |
+| CI-4 | Inspect released APK | rootfs asset is gzip, stored uncompressed, contains busybox/apk; minSdk 26, targetSdk 28; extractNativeLibs | As expected (BUG-3 found here and fixed) | pass |
 | D-1 | Fresh install, first launch | Progress, then workbench; sample project in Files | | pending |
 | D-2 | Terminal: `pwd; ls; echo $TERM; uname -a` | Real output, colours | | pending |
 | D-3 | Terminal: `sleep 100` then ^C | Interrupted, prompt returns | | pending |
@@ -25,3 +26,11 @@ No test below has been executed yet. Results are recorded only when actually run
 | D-16 | Airplane mode after toolchains installed | Editing, terminal, run all work | | pending |
 | D-17 | External keyboard: Ctrl+S, Ctrl+F, Ctrl+R, Ctrl+` | Shortcuts work; Ctrl+R in terminal reaches the shell | | pending |
 | D-18 | Install a newer build over the old one | Upgrade succeeds, files kept | | pending |
+
+## Bugs found and fixed
+
+| ID | Found by | Problem | Fix |
+|---|---|---|---|
+| BUG-1 | CI-1 | Termux PRoot also links `libandroid-shmem.so` | Bundle it; check NEEDED of every bundled library |
+| BUG-2 | CI-3 | sora-editor 0.23.7 is published under `io.github.rosemoe`, not `io.github.Rosemoe.sora-editor` | New coordinates |
+| BUG-3 | CI-4 | Asset packager silently gunzipped `rootfs-*.tar.gz` to `.tar`, so first launch would fail | Ship as `.cfrootfs`; CI asserts the asset name |
