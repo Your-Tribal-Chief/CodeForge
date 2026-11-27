@@ -11,6 +11,8 @@ if [ "$code" -ne 0 ]; then
   [ -n "$j" ] && echo "::error title=Other errors::$(printf '%s\n' "$j" | enc)"
   w="$(awk '/What went wrong:/{f=1} /Try:/{f=0} f' gradle-ci.log | head -80)"
   [ -n "$w" ] && echo "::error title=What went wrong::$(printf '%s\n' "$w" | enc)"
+  m="$(cat app/build/outputs/mapping/release/missing_rules.txt 2>/dev/null)"
+  [ -n "$m" ] && echo "::error title=R8 missing_rules.txt::$(printf '%s\n' "$m" | enc)"
   c="$(grep -E 'Caused by:' gradle-ci.log | sort -u | head -15)"
   [ -n "$c" ] && echo "::error title=Causes::$(printf '%s\n' "$c" | enc)"
 fi

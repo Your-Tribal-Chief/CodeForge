@@ -18,6 +18,8 @@
 -dontwarn org.joni.**
 -dontwarn org.jcodings.**
 -dontwarn org.snakeyaml.engine.**
+# sora-editor is compiled with Kotlin's old -Xjvm-default stubs; this companion class never exists at runtime.
+-dontwarn kotlin.Cloneable$DefaultImpls
 
 # ---- Gson --------------------------------------------------------------------------------
 -keep class com.google.gson.** { *; }
