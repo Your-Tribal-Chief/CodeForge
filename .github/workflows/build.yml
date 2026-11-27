@@ -102,4 +102,4 @@ jobs:
           arm64-v8a and x86_64. Android 8.0+. Sideload only (targetSdk 28, see docs/ARCHITECTURE.md).
           NOTES
           gh release create "build-${{ github.run_number }}" "${{ steps.apk.outputs.name }}" "${{ steps.apk.outputs.release }}" \
-            --title "CodeForge IDE build ${{ github.run_number }}" --notes-file notes.md --prerelease
+            --target "$GITHUB_SHA" --title "CodeForge IDE build ${{ github.run_number }}" --notes-file notes.md --prerelease

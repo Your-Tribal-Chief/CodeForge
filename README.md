@@ -30,6 +30,9 @@ Install by opening the APK on your phone and allowing installs from your browser
 | Terminal | Real PTY sessions (Termux terminal libraries), multiple tabs, ANSI colour, Ctrl/Alt/Esc/arrow keys, ^C/^D/^Z, pinch zoom, kept alive by a foreground service |
 | Linux | Alpine Linux (BusyBox, `apk`) under PRoot, extracted on first launch, works offline |
 | Toolchains | One-tap install of Python, Node.js, GCC/G++, Clang, OpenJDK, Go, Rust, PHP, Ruby, Git, Bash; status read from the installed binaries |
+| Search | Find/Replace in Files: regex, match case, whole word, include/exclude globs |
+| Source control | Status, stage/unstage, discard, inline diff, commit, branches; pull/push/fetch/clone in a terminal |
+| Palette | Command palette and quick open; breadcrumbs; `settings.json` with VS Code keys |
 | Run | Run the current file for Python, JS, C, C++, Java (multi-file, packages), Go, Rust, PHP, Ruby, shell; arguments; interactive stdin; stop/re-run; exit code and duration |
 
 ## Keyboard shortcuts
@@ -41,6 +44,11 @@ Install by opening the APK on your phone and allowing installs from your browser
 | Ctrl+R or F5 | Run current file |
 | Ctrl+` | Switch between editor and terminal |
 | Ctrl+Shift+E | Files |
+| Ctrl+Shift+P or F1 | Command palette |
+| Ctrl+P | Go to file |
+| Ctrl+Shift+F | Find in files |
+| Ctrl+Shift+G | Source control |
+| Alt+Z | Toggle word wrap |
 
 ## Building locally
 
