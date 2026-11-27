@@ -47,7 +47,7 @@ PY
   echo "::notice::Alpine $VERSION ($BRANCH) $ARCH"
   fetch "$base/$FILE" "$WORK/rootfs.tar.gz"
   check_sha "$WORK/rootfs.tar.gz" "$SHA"
-  cp "$WORK/rootfs.tar.gz" "$ASSETS/rootfs-$ABI.tar.gz"
+  cp "$WORK/rootfs.tar.gz" "$ASSETS/rootfs-$ABI.cfrootfs"  # gzip tarball; .gz names get auto-decompressed by the asset packager
   printf 'version=%s\nbranch=%s\nsha256=%s\nfile=%s\n' "$VERSION" "$BRANCH" "$SHA" "$FILE" > "$ASSETS/rootfs-$ABI.properties"
 
   # ---- PRoot + libtalloc from Termux ----

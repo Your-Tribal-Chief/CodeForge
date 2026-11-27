@@ -68,6 +68,10 @@ jobs:
           echo "APK size: $(du -h "$NAME" | cut -f1)"
           unzip -l "$NAME" | grep -E "lib/.*/lib(proot|proot-loader|talloc|termux)\.so|assets/bootstrap/" \
             || { echo "::error::APK is missing the Linux userland"; exit 1; }
+          for abi in arm64-v8a x86_64; do
+            unzip -l "$NAME" | grep -q "assets/bootstrap/rootfs-$abi.cfrootfs" || { echo "::error::rootfs asset for $abi missing or renamed"; exit 1; }
+          done
+          echo "::notice::APK size $(du -h "$NAME" | cut -f1)"
           SDK=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -n1)
           "$SDK/apksigner" verify --print-certs "$NAME" | head -n 3
           "$SDK/aapt2" dump badging "$NAME" | grep -E "^package|sdkVersion|targetSdkVersion|native-code"

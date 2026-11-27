@@ -65,7 +65,7 @@ android {
 
     androidResources {
         // Already compressed; keeps openFd() working for install progress.
-        noCompress += listOf("tar.gz", "gz")
+        noCompress += listOf("cfrootfs")
     }
 
     lint {

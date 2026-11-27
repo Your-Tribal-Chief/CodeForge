@@ -102,7 +102,7 @@ object Bootstrap {
         // Wipe everything except the user's home directory.
         root.listFiles()?.forEach { if (it.name != "root") FileOps.deleteTree(it) }
 
-        val asset = "bootstrap/rootfs-$abi.tar.gz"
+        val asset = "bootstrap/rootfs-$abi.cfrootfs" // gzip-compressed tar (see fetch-bootstrap.sh)
         val am = Env.app.assets
         val total = try {
             am.openFd(asset).use { it.length }
