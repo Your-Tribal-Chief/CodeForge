@@ -54,7 +54,12 @@ object Proot {
     data class ExecResult(val exitCode: Int, val output: String, val timedOut: Boolean)
 
     /** Run a short, non-interactive command in the guest and capture its output. */
-    suspend fun exec(script: String, cwdGuest: String = "/root", timeoutMs: Long = 30_000): ExecResult =
+    suspend fun exec(
+        script: String,
+        cwdGuest: String = "/root",
+        timeoutMs: Long = 30_000,
+        maxChars: Int = 64_000,
+    ): ExecResult =
         withContext(Dispatchers.IO) {
             val pb = ProcessBuilder(*argv(cwdGuest, listOf("/bin/sh", "-c", script)))
             val env = pb.environment()
@@ -70,7 +75,7 @@ object Proot {
             val reader = thread(isDaemon = true, name = "proot-exec-reader") {
                 try {
                     proc.inputStream.bufferedReader().forEachLine { line ->
-                        synchronized(out) { if (out.length < 64_000) out.appendLine(line) }
+                        synchronized(out) { if (out.length < maxChars) out.appendLine(line) }
                     }
                 } catch (_: Exception) {
                 }

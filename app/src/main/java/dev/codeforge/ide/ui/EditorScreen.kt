@@ -123,7 +123,7 @@ fun EditorScreen(modifier: Modifier = Modifier) {
         editor.setLineNumberEnabled(prefs.lineNumbers)
     }
 
-    LaunchedEffect(active, grammarsReady, prefs.lightTheme) {
+    LaunchedEffect(active, active?.content, grammarsReady, prefs.lightTheme) {
         if (appliedLight != prefs.lightTheme && grammarsReady) {
             editor.setColorScheme(EditorSupport.colorScheme(prefs.lightTheme))
             appliedLight = prefs.lightTheme
@@ -132,6 +132,19 @@ fun EditorScreen(modifier: Modifier = Modifier) {
             if (editor.text !== active.content) editor.setText(active.content, true, null)
             editor.setEditorLanguage(if (grammarsReady) EditorSupport.languageFor(active.file) else EmptyLanguage())
             editor.ensureSelectionVisible()
+        }
+    }
+
+    // Cursor jumps requested by search results / quick open, applied once that file is showing.
+    val jump = Workspace.pendingJump
+    LaunchedEffect(jump, active, active?.content) {
+        if (jump != null && active != null && jump.path == active.file.absolutePath && editor.text === active.content) {
+            runCatching {
+                val line = jump.line.coerceIn(0, editor.text.lineCount - 1)
+                val col = jump.column.coerceIn(0, editor.text.getColumnCount(line))
+                editor.setSelection(line, col, true)
+            }
+            Workspace.pendingJump = null
         }
     }
 
@@ -244,12 +257,19 @@ private fun TabStrip(onRequestClose: (OpenFile) -> Unit, onRunWithArgs: () -> Un
             Spacer(Modifier.width(2.dp))
             Text("Run", fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = if (runnable) c.onPrimary else c.onSurfaceVariant)
         }
+        Box(
+            Modifier.size(40.dp).clickable { UiState.palette = PaletteMode.COMMANDS },
+            contentAlignment = Alignment.Center,
+        ) { Text("⌘", fontSize = 18.sp, color = c.onSurfaceVariant) }
         IconButton(onClick = { UiState.findOpen = !UiState.findOpen }) {
             Icon(Icons.Outlined.Search, "Find and replace", tint = if (UiState.findOpen) c.primary else c.onSurfaceVariant)
         }
         Box {
             IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, "More", tint = c.onSurfaceVariant) }
             DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                DropdownMenuItem(text = { Text("Command palette…") }, onClick = { menu = false; UiState.palette = PaletteMode.COMMANDS })
+                DropdownMenuItem(text = { Text("Go to file…") }, onClick = { menu = false; UiState.palette = PaletteMode.FILES })
+                HorizontalDivider()
                 DropdownMenuItem(text = { Text("Save") }, leadingIcon = { Icon(Icons.Outlined.Save, null) },
                     enabled = Workspace.active != null, onClick = { menu = false; Actions.saveActive() })
                 DropdownMenuItem(text = { Text("Save all") }, onClick = { menu = false; Actions.saveAll() })
@@ -287,13 +307,38 @@ private fun StatusLine(f: OpenFile) {
         Modifier.fillMaxWidth().background(c.surface).padding(horizontal = 12.dp, vertical = 3.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text(
-            dev.codeforge.ide.core.Env.toGuest(f.file),
-            fontFamily = Mono, fontSize = 11.sp, color = c.onSurfaceVariant,
-            maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
-        )
+        Breadcrumbs(f.file, Modifier.weight(1f))
         Text(lang.label, fontSize = 11.sp, color = c.onSurfaceVariant)
         if (f.dirty) Text("Unsaved", fontSize = 11.sp, color = c.primary)
+    }
+}
+
+/** Clickable path segments; tapping a folder reveals it in Files. */
+@Composable
+private fun Breadcrumbs(file: java.io.File, modifier: Modifier = Modifier) {
+    val c = MaterialTheme.colorScheme
+    val env = dev.codeforge.ide.core.Env
+    val base = when {
+        file.absolutePath.startsWith(env.home.absolutePath + "/") -> env.home
+        file.absolutePath.startsWith(env.sharedStorage.absolutePath + "/") -> env.sharedStorage
+        else -> null
+    }
+    val chain = generateSequence(file) { it.parentFile }.takeWhile { base == null || it.absolutePath != base.absolutePath }.toList().reversed()
+    Row(modifier.horizontalScroll(rememberScrollState()), verticalAlignment = Alignment.CenterVertically) {
+        Text(if (base == env.sharedStorage) "/sdcard" else "~", fontFamily = Mono, fontSize = 11.sp, color = c.onSurfaceVariant)
+        for ((i, seg) in chain.withIndex()) {
+            Text(" › ", fontSize = 11.sp, color = c.onSurfaceVariant)
+            val last = i == chain.lastIndex
+            Text(
+                seg.name, fontFamily = Mono, fontSize = 11.sp,
+                color = if (last) c.onSurface else c.onSurfaceVariant,
+                fontWeight = if (last) FontWeight.SemiBold else FontWeight.Normal,
+                modifier = if (last) Modifier else Modifier.clickable {
+                    ExplorerState.reveal(seg)
+                    UiState.dest = Dest.FILES
+                },
+            )
+        }
     }
 }
 

@@ -66,7 +66,8 @@ object Runner {
         val mainClass = if (pkg != null) "$pkg.${file.nameWithoutExtension}" else file.nameWithoutExtension
         val root = q(Env.toGuest(srcRoot))
         return "rm -rf $OUT/java && mkdir -p $OUT/java && " +
-            "find $root -name '*.java' > $OUT/java-sources.txt && " +
+            // Quote every path so javac's @argfile accepts spaces in file names.
+            "find $root -name '*.java' | sed 's/.*/\"&\"/' > $OUT/java-sources.txt && " +
             "javac -encoding UTF-8 -g -d $OUT/java @$OUT/java-sources.txt && " +
             "java -cp $OUT/java ${q(mainClass)} $args"
     }

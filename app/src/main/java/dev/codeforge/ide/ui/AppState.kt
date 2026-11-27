@@ -18,13 +18,17 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 
-enum class Dest(val label: String) { FILES("Files"), CODE("Code"), TERMINAL("Terminal"), TOOLS("Tools"), SETTINGS("Settings") }
+enum class Dest(val label: String) {
+    FILES("Files"), SEARCH("Search"), GIT("Git"), CODE("Code"), TERMINAL("Terminal"), TOOLS("Tools"), SETTINGS("Settings")
+}
 
 data class Snack(val text: String, val action: String? = null, val onAction: (() -> Unit)? = null)
 
 object UiState {
     var dest by mutableStateOf(Dest.CODE)
     var findOpen by mutableStateOf(false)
+    /** Non-null while the command palette / quick open is showing. */
+    var palette by mutableStateOf<PaletteMode?>(null)
     val snacks = MutableSharedFlow<Snack>(extraBufferCapacity = 8)
 
     fun snack(text: String, action: String? = null, onAction: (() -> Unit)? = null) {
@@ -42,6 +46,29 @@ object Actions {
                 Workspace.OpenResult.Ok -> UiState.dest = Dest.CODE
                 is Workspace.OpenResult.Error -> UiState.snack(r.message)
             }
+        }
+    }
+
+    /** Opens [file] and moves the cursor to [line]/[column] (0-based). */
+    fun openFileAt(file: File, line: Int, column: Int) {
+        Workspace.pendingJump = Workspace.Jump(file.absolutePath, line, column)
+        openFile(file)
+    }
+
+    /** Writes the current settings to /root/.codeforge/settings.json (unless it has unsaved edits) and opens it. */
+    fun openSettingsJson() {
+        val f = dev.codeforge.ide.core.AppSettings.settingsJsonFile
+        scope.launch {
+            val open = Workspace.findOpen(f)
+            if (open?.dirty != true) {
+                withContext(Dispatchers.IO) {
+                    f.parentFile?.mkdirs()
+                    f.writeText(dev.codeforge.ide.core.AppSettings.toJson())
+                }
+                Workspace.reloadIfClean(f)
+            }
+            openFile(f)
+            UiState.snack("Edit and save settings.json to apply it")
         }
     }
 

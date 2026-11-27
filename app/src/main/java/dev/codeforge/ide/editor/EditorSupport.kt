@@ -11,13 +11,18 @@ import io.github.rosemoe.sora.langs.textmate.TextMateLanguage
 import io.github.rosemoe.sora.langs.textmate.registry.FileProviderRegistry
 import io.github.rosemoe.sora.langs.textmate.registry.GrammarRegistry
 import io.github.rosemoe.sora.langs.textmate.registry.ThemeRegistry
+import io.github.rosemoe.sora.langs.textmate.registry.model.DefaultGrammarDefinition
+import io.github.rosemoe.sora.langs.textmate.registry.model.GrammarDefinition
 import io.github.rosemoe.sora.langs.textmate.registry.model.ThemeModel
 import io.github.rosemoe.sora.langs.textmate.registry.provider.AssetsFileResolver
 import io.github.rosemoe.sora.widget.schemes.EditorColorScheme
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import org.eclipse.tm4e.core.registry.IGrammarSource
 import org.eclipse.tm4e.core.registry.IThemeSource
+import org.json.JSONObject
 import java.io.File
+import java.io.IOException
 import java.util.Properties
 
 /** TextMate grammars (VS Code's MIT-licensed grammars) driving syntax highlighting in sora-editor. */
@@ -30,6 +35,9 @@ object EditorSupport {
     val ready: StateFlow<Boolean> = _ready
 
     private var typeface: Typeface? = null
+
+    /** Grammars that failed to load ("name: reason"). Each grammar loads independently. */
+    val grammarErrors = mutableListOf<String>()
 
     fun monoTypeface(context: Context): Typeface {
         typeface?.let { return it }
@@ -89,11 +97,46 @@ object EditorSupport {
                 )
             }
             themes.setTheme(DARK_THEME)
-            GrammarRegistry.getInstance().loadGrammars("textmate/languages.json")
+            loadGrammarsIndividually(context)
             _ready.value = true
         } catch (t: Throwable) {
             Log.e(TAG, "TextMate init failed", t)
             _ready.value = true // the editor still works, as plain text
+        }
+    }
+
+    /**
+     * Loads every entry of languages.json on its own, so one broken grammar can't disable
+     * highlighting for every language (GrammarRegistry.loadGrammars(path) is all-or-nothing).
+     * Also avoids sora's Gson-reflection reader, which R8 could otherwise break in release builds.
+     * tm4e picks the parser from the extension: .json -> JSON, .tmLanguage/.plist/.xml -> plist XML,
+     * so Kotlin.tmLanguage (plist) and the .tmLanguage.json grammars both load.
+     */
+    private fun loadGrammarsIndividually(context: Context) {
+        val text = context.assets.open("textmate/languages.json").bufferedReader().use { it.readText() }
+        val langs = JSONObject(text).getJSONArray("languages")
+        val registry = GrammarRegistry.getInstance()
+        for (i in 0 until langs.length()) {
+            val o = langs.getJSONObject(i)
+            val name = o.optString("name", "?")
+            try {
+                val path = o.getString("grammar")
+                val input = FileProviderRegistry.getInstance().tryGetInputStream(path)
+                    ?: throw IOException("missing asset $path")
+                val source = IGrammarSource.fromInputStream(input, path, Charsets.UTF_8)
+                val conf = o.optString("languageConfiguration").ifEmpty { null }
+                var def: GrammarDefinition =
+                    DefaultGrammarDefinition.withLanguageConfiguration(source, conf, name, o.getString("scopeName"))
+                o.optJSONObject("embeddedLanguages")?.let { e ->
+                    val map = HashMap<String, String>()
+                    for (k in e.keys()) map[k] = e.getString(k)
+                    def = (def as DefaultGrammarDefinition).withEmbeddedLanguages(map)
+                }
+                registry.loadGrammar(def)
+            } catch (t: Throwable) {
+                Log.w(TAG, "Grammar $name failed", t)
+                synchronized(grammarErrors) { grammarErrors += "$name: ${t.message ?: t.javaClass.simpleName}" }
+            }
         }
     }
 

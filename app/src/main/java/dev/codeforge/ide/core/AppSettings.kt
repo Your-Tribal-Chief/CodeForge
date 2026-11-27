@@ -2,6 +2,8 @@ package dev.codeforge.ide.core
 
 import android.content.Context
 import android.content.SharedPreferences
+import org.json.JSONObject
+import java.io.File
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
@@ -56,6 +58,42 @@ object AppSettings {
     }
 
     fun reset() = update { Prefs() }
+
+    // ---- settings.json (VS Code-style keys) -------------------------------------------------
+    /** Guest path /root/.codeforge/settings.json. Saving it in the editor applies it. */
+    val settingsJsonFile: File get() = File(Env.home, ".codeforge/settings.json")
+
+    fun toJson(p: Prefs = current): String = JSONObject().apply {
+        put("editor.fontSize", p.editorFontSize)
+        put("editor.tabSize", p.tabSize)
+        put("editor.wordWrap", if (p.wordWrap) "on" else "off")
+        put("editor.lineNumbers", if (p.lineNumbers) "on" else "off")
+        put("files.autoSave", if (p.autoSave) "afterDelay" else "off")
+        put("workbench.colorTheme", if (p.lightTheme) "Quiet Light" else "CodeForge Dark")
+        put("terminal.integrated.fontSize", p.terminalFontSize)
+        put("codeforge.explorer.showHiddenFiles", p.showHidden)
+        put("codeforge.proot.disableSeccomp", p.prootNoSeccomp)
+    }.toString(2) + "\n"
+
+    /** Applies a settings.json text. Unknown keys are ignored; returns a short report. */
+    fun applyJson(text: String): String {
+        val stripped = text.lineSequence().filterNot { it.trimStart().startsWith("//") }.joinToString("\n")
+        val o = JSONObject(stripped)
+        var p = current
+        var applied = 0
+        fun has(k: String) = o.has(k).also { if (it) applied++ }
+        if (has("editor.fontSize")) p = p.copy(editorFontSize = o.getInt("editor.fontSize").coerceIn(8, 32))
+        if (has("editor.tabSize")) p = p.copy(tabSize = o.getInt("editor.tabSize").coerceIn(1, 8))
+        if (has("editor.wordWrap")) p = p.copy(wordWrap = o.getString("editor.wordWrap") != "off")
+        if (has("editor.lineNumbers")) p = p.copy(lineNumbers = o.getString("editor.lineNumbers") != "off")
+        if (has("files.autoSave")) p = p.copy(autoSave = o.getString("files.autoSave") != "off")
+        if (has("workbench.colorTheme")) p = p.copy(lightTheme = o.getString("workbench.colorTheme").contains("light", true))
+        if (has("terminal.integrated.fontSize")) p = p.copy(terminalFontSize = o.getInt("terminal.integrated.fontSize").coerceIn(8, 32))
+        if (has("codeforge.explorer.showHiddenFiles")) p = p.copy(showHidden = o.getBoolean("codeforge.explorer.showHiddenFiles"))
+        if (has("codeforge.proot.disableSeccomp")) p = p.copy(prootNoSeccomp = o.getBoolean("codeforge.proot.disableSeccomp"))
+        update { p }
+        return "Applied $applied setting(s) from settings.json"
+    }
 
     /** Open editor tabs, restored after the app restarts. */
     var openFiles: List<String>

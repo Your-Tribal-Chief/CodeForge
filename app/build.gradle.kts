@@ -35,7 +35,8 @@ android {
             signingConfig = signingConfigs.getByName("codeforgeTest")
         }
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             signingConfig = signingConfigs.getByName("codeforgeTest")
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }

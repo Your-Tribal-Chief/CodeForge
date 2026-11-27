@@ -13,8 +13,10 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.IOException
 
-class OpenFile(file: File, val content: Content) {
+class OpenFile(file: File, content: Content) {
     var file by mutableStateOf(file)
+    /** Replaced (not mutated) when the file is reloaded from disk, e.g. after Replace in Files. */
+    var content by mutableStateOf(content)
     var dirty by mutableStateOf(false)
     var lastSavedAt by mutableStateOf(0L)
 }
@@ -29,6 +31,21 @@ object Workspace {
     var treeVersion by mutableIntStateOf(0)
 
     val active: OpenFile? get() = files.getOrNull(activeIndex)
+
+    data class Jump(val path: String, val line: Int, val column: Int)
+    /** Cursor position to apply once [Jump.path] is the active tab (search results, breadcrumbs). */
+    var pendingJump by mutableStateOf<Jump?>(null)
+
+    fun findOpen(file: File): OpenFile? = files.firstOrNull { it.file.absolutePath == file.absolutePath }
+
+    /** Reloads a clean tab from disk. Dirty tabs are left alone. */
+    suspend fun reloadIfClean(file: File) {
+        val of = findOpen(file) ?: return
+        if (of.dirty) return
+        val text = withContext(Dispatchers.IO) { file.readText() }
+        of.content = Content(text)
+        of.dirty = false
+    }
 
     sealed interface OpenResult {
         data object Ok : OpenResult
@@ -74,6 +91,10 @@ object Workspace {
             withContext(Dispatchers.Main) {
                 of.dirty = false
                 of.lastSavedAt = System.currentTimeMillis()
+                if (of.file.absolutePath == AppSettings.settingsJsonFile.absolutePath) {
+                    val msg = try { AppSettings.applyJson(text) } catch (e: Exception) { "settings.json not applied: ${e.message}" }
+                    dev.codeforge.ide.ui.UiState.snack(msg)
+                }
             }
             Result.success(Unit)
         } catch (e: IOException) {

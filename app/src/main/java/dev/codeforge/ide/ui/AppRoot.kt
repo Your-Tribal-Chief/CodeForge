@@ -22,7 +22,9 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Build
 import androidx.compose.material.icons.outlined.Code
+import androidx.compose.material.icons.outlined.AccountTree
 import androidx.compose.material.icons.outlined.Folder
+import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
@@ -121,10 +123,12 @@ private fun Workbench() {
     }
 
     // Back from any panel returns to the editor; back from the editor keeps sessions alive.
-    BackHandler(enabled = UiState.findOpen) { UiState.findOpen = false }
-    BackHandler(enabled = !UiState.findOpen && UiState.dest != Dest.CODE) { UiState.dest = Dest.CODE }
-    BackHandler(enabled = !UiState.findOpen && UiState.dest == Dest.CODE) { activity?.moveTaskToBack(true) }
+    BackHandler(enabled = UiState.palette != null) { UiState.palette = null }
+    BackHandler(enabled = UiState.palette == null && UiState.findOpen) { UiState.findOpen = false }
+    BackHandler(enabled = UiState.palette == null && !UiState.findOpen && UiState.dest != Dest.CODE) { UiState.dest = Dest.CODE }
+    BackHandler(enabled = UiState.palette == null && !UiState.findOpen && UiState.dest == Dest.CODE) { activity?.moveTaskToBack(true) }
 
+    Box(Modifier.fillMaxSize()) {
     Scaffold(
         snackbarHost = { SnackbarHost(snackbar) },
         bottomBar = { if (!wide) ActivityBar(horizontal = true) },
@@ -133,14 +137,19 @@ private fun Workbench() {
         Row(Modifier.padding(pad).fillMaxSize()) {
             if (wide) {
                 ActivityBar(horizontal = false)
-                if (UiState.dest == Dest.CODE || UiState.dest == Dest.FILES) {
-                    ExplorerScreen(Modifier.width(300.dp))
-                    VerticalDivider(color = c.outlineVariant)
+                when (UiState.dest) {
+                    Dest.CODE, Dest.FILES -> ExplorerScreen(Modifier.width(300.dp))
+                    Dest.SEARCH -> SearchScreen(Modifier.width(340.dp))
+                    Dest.GIT -> GitScreen(Modifier.width(340.dp))
+                    else -> {}
                 }
+                if (UiState.dest in setOf(Dest.CODE, Dest.FILES, Dest.SEARCH, Dest.GIT)) VerticalDivider(color = c.outlineVariant)
             }
             Box(Modifier.weight(1f).fillMaxHeight()) {
                 when (UiState.dest) {
                     Dest.FILES -> if (wide) EditorScreen() else ExplorerScreen()
+                    Dest.SEARCH -> if (wide) EditorScreen() else SearchScreen()
+                    Dest.GIT -> if (wide) EditorScreen() else GitScreen()
                     Dest.CODE -> EditorScreen()
                     Dest.TERMINAL -> TerminalScreen()
                     Dest.TOOLS -> ToolsScreen()
@@ -148,6 +157,8 @@ private fun Workbench() {
                 }
             }
         }
+    }
+    UiState.palette?.let { mode -> CommandPalette(mode) { UiState.palette = null } }
     }
 }
 
@@ -158,7 +169,7 @@ private fun ActivityBar(horizontal: Boolean) {
     val items = Dest.entries
     val content: @Composable (Modifier) -> Unit = { itemModifier ->
         for (d in items) {
-            val selected = UiState.dest == d || (d == Dest.CODE && UiState.dest == Dest.FILES && !horizontal)
+            val selected = UiState.dest == d
             val tint = if (selected) c.primary else c.onSurfaceVariant
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -170,12 +181,14 @@ private fun ActivityBar(horizontal: Boolean) {
             ) {
                 when (d) {
                     Dest.FILES -> Icon(Icons.Outlined.Folder, null, tint = tint)
+                    Dest.SEARCH -> Icon(Icons.Outlined.Search, null, tint = tint)
+                    Dest.GIT -> Icon(Icons.Outlined.AccountTree, null, tint = tint)
                     Dest.CODE -> Icon(Icons.Outlined.Code, null, tint = tint)
                     Dest.TERMINAL -> TerminalGlyph(tint)
                     Dest.TOOLS -> Icon(Icons.Outlined.Build, null, tint = tint)
                     Dest.SETTINGS -> Icon(Icons.Outlined.Settings, null, tint = tint)
                 }
-                Text(d.label, fontSize = 11.sp, color = tint, maxLines = 1)
+                Text(d.label, fontSize = if (horizontal) 10.sp else 11.sp, color = tint, maxLines = 1)
             }
         }
     }

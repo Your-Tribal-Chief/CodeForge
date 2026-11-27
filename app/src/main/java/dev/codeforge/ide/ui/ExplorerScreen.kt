@@ -66,7 +66,7 @@ import java.io.File
 
 private data class Node(val file: File, val depth: Int, val isDir: Boolean, val rootLabel: String? = null)
 
-private class FileClip(val file: File, val cut: Boolean)
+internal class FileClip(val file: File, val cut: Boolean)
 
 private sealed interface ExplorerDialog {
     data class NewFile(val dir: File) : ExplorerDialog
@@ -75,10 +75,23 @@ private sealed interface ExplorerDialog {
     data class Delete(val file: File) : ExplorerDialog
 }
 
-private object ExplorerState {
+internal object ExplorerState {
     val expanded = mutableStateListOf<String>()
     var clip by mutableStateOf<FileClip?>(null)
     var target by mutableStateOf<File?>(null)
+
+    /** Expands every folder from its root down to [dir] and selects it (used by breadcrumbs). */
+    fun reveal(dir: File) {
+        val roots = listOf(Env.home, Env.sharedWorkspace).map { it.absolutePath }
+        var cur: File? = dir
+        while (cur != null) {
+            val p = cur.absolutePath
+            if (p !in expanded) expanded.add(p)
+            if (p in roots) break
+            cur = cur.parentFile
+        }
+        target = dir
+    }
 }
 
 private const val MAX_NODES = 4000

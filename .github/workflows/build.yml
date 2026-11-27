@@ -58,6 +58,9 @@ jobs:
       - name: Build APK
         run: bash scripts/ci-gradle.sh :app:assembleDebug
 
+      - name: Build release APK (R8)
+        run: bash scripts/ci-gradle.sh :app:assembleRelease
+
       - name: Inspect APK
         id: apk
         run: |
@@ -65,6 +68,10 @@ jobs:
           NAME="CodeForge-IDE-0.1.0-mvp-build${{ github.run_number }}.apk"
           cp "$SRC" "$NAME"
           echo "name=$NAME" >> "$GITHUB_OUTPUT"
+          REL="CodeForge-IDE-0.1.0-mvp-build${{ github.run_number }}-release.apk"
+          cp app/build/outputs/apk/release/*.apk "$REL"
+          echo "release=$REL" >> "$GITHUB_OUTPUT"
+          echo "::notice::Release (R8) APK size $(du -h "$REL" | cut -f1)"
           echo "APK size: $(du -h "$NAME" | cut -f1)"
           unzip -l "$NAME" | grep -E "lib/.*/lib(proot|proot-loader|talloc|termux)\.so|assets/bootstrap/" \
             || { echo "::error::APK is missing the Linux userland"; exit 1; }
@@ -79,7 +86,9 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ steps.apk.outputs.name }}
-          path: ${{ steps.apk.outputs.name }}
+          path: |
+            ${{ steps.apk.outputs.name }}
+            ${{ steps.apk.outputs.release }}
 
       - name: Publish release (direct APK download link)
         env:
@@ -88,8 +97,9 @@ jobs:
           cat > notes.md <<NOTES
           CodeForge IDE MVP, build ${{ github.run_number }} (commit ${GITHUB_SHA::7}).
 
+          Two APKs: debug, and a smaller R8-minified release build with the same features.
           Signed with the public TEST key in keystore/ so later builds install as updates. Not a production signature.
           arm64-v8a and x86_64. Android 8.0+. Sideload only (targetSdk 28, see docs/ARCHITECTURE.md).
           NOTES
-          gh release create "build-${{ github.run_number }}" "${{ steps.apk.outputs.name }}" \
+          gh release create "build-${{ github.run_number }}" "${{ steps.apk.outputs.name }}" "${{ steps.apk.outputs.release }}" \
             --title "CodeForge IDE build ${{ github.run_number }}" --notes-file notes.md --prerelease

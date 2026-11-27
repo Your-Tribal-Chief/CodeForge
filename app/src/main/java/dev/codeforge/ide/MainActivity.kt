@@ -11,6 +11,7 @@ import dev.codeforge.ide.ui.Actions
 import dev.codeforge.ide.ui.AppRoot
 import dev.codeforge.ide.ui.CodeForgeTheme
 import dev.codeforge.ide.ui.Dest
+import dev.codeforge.ide.ui.PaletteMode
 import dev.codeforge.ide.ui.UiState
 
 class MainActivity : ComponentActivity() {
@@ -27,6 +28,18 @@ class MainActivity : ComponentActivity() {
         if (event.action == KeyEvent.ACTION_DOWN) {
             val inCode = UiState.dest == Dest.CODE
             val handled = when {
+                event.keyCode == KeyEvent.KEYCODE_F1 ||
+                    (event.isCtrlPressed && event.isShiftPressed && event.keyCode == KeyEvent.KEYCODE_P) -> {
+                    UiState.palette = PaletteMode.COMMANDS; true
+                }
+                UiState.dest != Dest.TERMINAL && event.isCtrlPressed && !event.isShiftPressed && event.keyCode == KeyEvent.KEYCODE_P -> {
+                    UiState.palette = PaletteMode.FILES; true
+                }
+                event.isCtrlPressed && event.isShiftPressed && event.keyCode == KeyEvent.KEYCODE_F -> { UiState.dest = Dest.SEARCH; true }
+                event.isCtrlPressed && event.isShiftPressed && event.keyCode == KeyEvent.KEYCODE_G -> { UiState.dest = Dest.GIT; true }
+                inCode && event.isAltPressed && event.keyCode == KeyEvent.KEYCODE_Z -> {
+                    AppSettings.update { it.copy(wordWrap = !it.wordWrap) }; true
+                }
                 event.keyCode == KeyEvent.KEYCODE_F5 -> { Actions.runActive(); true }
                 event.isCtrlPressed && event.keyCode == KeyEvent.KEYCODE_GRAVE -> {
                     UiState.dest = if (UiState.dest == Dest.TERMINAL) Dest.CODE else Dest.TERMINAL; true
