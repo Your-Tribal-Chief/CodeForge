@@ -78,9 +78,9 @@ android {
 dependencies {
     implementation(project(":terminal-view"))
 
-    implementation(platform("io.github.Rosemoe.sora-editor:bom:0.23.7"))
-    implementation("io.github.Rosemoe.sora-editor:editor")
-    implementation("io.github.Rosemoe.sora-editor:language-textmate")
+    // sora-editor moved to the io.github.rosemoe group from 0.23.7 on.
+    implementation("io.github.rosemoe:editor:0.23.7")
+    implementation("io.github.rosemoe:language-textmate:0.23.7")
 
     implementation("androidx.core:core-ktx:1.15.0")
     implementation("androidx.activity:activity-compose:1.9.3")
