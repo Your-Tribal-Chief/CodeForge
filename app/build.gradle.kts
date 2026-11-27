@@ -56,7 +56,7 @@ android {
         jniLibs {
             // Extract .so files to nativeLibraryDir so PRoot and its loader are executable.
             useLegacyPackaging = true
-            keepDebugSymbols += listOf("**/libproot.so", "**/libproot-loader.so", "**/libtalloc.so")
+            keepDebugSymbols += listOf("**/libproot.so", "**/libproot-loader.so", "**/libtalloc.so", "**/libandroid-shmem.so")
         }
         resources {
             excludes += listOf("/META-INF/{AL2.0,LGPL2.1}", "/META-INF/DEPENDENCIES", "/META-INF/INDEX.LIST")

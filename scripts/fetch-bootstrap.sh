@@ -44,7 +44,7 @@ e = next(e for e in entries if e.get("flavor") == "alpine-minirootfs")
 print(e["file"], e["sha256"], e["branch"], e["version"])
 PY
 )
-  echo "Alpine $VERSION ($BRANCH): $FILE"
+  echo "::notice::Alpine $VERSION ($BRANCH) $ARCH"
   fetch "$base/$FILE" "$WORK/rootfs.tar.gz"
   check_sha "$WORK/rootfs.tar.gz" "$SHA"
   cp "$WORK/rootfs.tar.gz" "$ASSETS/rootfs-$ABI.tar.gz"
@@ -56,7 +56,7 @@ PY
     if fetch "$M/dists/stable/main/binary-$ARCH/Packages" "$WORK/Packages" 2>/dev/null; then ok="$M"; break; fi
   done
   [ -n "$ok" ] || { echo "::error::No Termux mirror reachable"; exit 1; }
-  for pkg in proot libtalloc; do
+  for pkg in proot libtalloc libandroid-shmem; do
     read -r FN PSHA < <(python3 - "$WORK/Packages" "$pkg" <<'PY'
 import sys
 want = sys.argv[2]
@@ -74,22 +74,28 @@ PY
   done
   PREFIX_P="$WORK/proot/data/data/com.termux/files/usr"
   PREFIX_T="$WORK/libtalloc/data/data/com.termux/files/usr"
+  PREFIX_S="$WORK/libandroid-shmem/data/data/com.termux/files/usr"
   OUT="$JNI/$ABI"; mkdir -p "$OUT"
   cp -L "$PREFIX_P/bin/proot" "$OUT/libproot.so"
   cp -L "$PREFIX_P/libexec/proot/loader" "$OUT/libproot-loader.so"
   cp -L "$(ls "$PREFIX_T"/lib/libtalloc.so.2* | head -n1)" "$OUT/libtalloc.so"
+  cp -L "$PREFIX_S/lib/libandroid-shmem.so" "$OUT/libandroid-shmem.so"
   # Android only extracts lib*.so; point proot at the renamed library.
   patchelf --replace-needed libtalloc.so.2 libtalloc.so "$OUT/libproot.so"
   patchelf --set-soname libtalloc.so "$OUT/libtalloc.so"
-  patchelf --remove-rpath "$OUT/libproot.so" || true
+  for so in libproot.so libtalloc.so libandroid-shmem.so; do patchelf --remove-rpath "$OUT/$so" || true; done
   chmod 755 "$OUT"/*.so
-  needed="$(readelf -d "$OUT/libproot.so" | sed -n 's/.*(NEEDED).*\[\(.*\)\]/\1/p' | tr '\n' ' ')"
-  echo "libproot.so NEEDED: $needed"
-  for lib in $needed; do
-    case "$lib" in libc.so|libdl.so|libm.so|liblog.so|libtalloc.so) ;;
-      *) echo "::error::libproot.so needs unexpected library $lib; add it to fetch-bootstrap.sh"; exit 1;;
-    esac
+  bad=""
+  for so in libproot.so libtalloc.so libandroid-shmem.so; do
+    needed="$(readelf -d "$OUT/$so" | sed -n 's/.*(NEEDED).*\[\(.*\)\]/\1/p' | tr '\n' ' ')"
+    echo "::notice::$ABI $so NEEDED: $needed"
+    for lib in $needed; do
+      case "$lib" in libc.so|libdl.so|libm.so|liblog.so|libtalloc.so|libandroid-shmem.so) ;;
+        *) bad="$bad $so->$lib";;
+      esac
+    done
   done
-  rm -rf "$WORK/proot" "$WORK/libtalloc" "$WORK"/*.deb
+  if [ -n "$bad" ]; then echo "::error::Unbundled shared libraries:$bad"; exit 1; fi
+  rm -rf "$WORK/proot" "$WORK/libtalloc" "$WORK/libandroid-shmem" "$WORK"/*.deb
 done
 echo "Bootstrap assets ready."; ls -la "$ASSETS" "$JNI"/*
